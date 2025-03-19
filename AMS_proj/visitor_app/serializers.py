@@ -50,7 +50,7 @@ class VisitorSerializer(serializers.ModelSerializer):
             meeting_start_time=validated_data['meeting_start_time'],
             meeting_end_time=validated_data['meeting_end_time'],
             reason=validated_data['reason'],
-            status='pending'  # Initial status
+            status='pending'
         )
         send_creation_notifications(visitor)
         return visitor
@@ -87,7 +87,7 @@ class RescheduleSerializer(serializers.ModelSerializer):
         ).exclude(id=instance.id).exclude(status='cancelled').exists()
 
         if overlapping:
-            raise serializers.ValidationError("Time slot already booked")
+            raise serializers.ValidationError("The time slot for requested appointment is already booked")
 
         # For confirmation, check extended availability
         if data.get('status') == 'confirmed':
