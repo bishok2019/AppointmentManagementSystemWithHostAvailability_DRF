@@ -26,12 +26,10 @@ class PermissionCategoryCreateSerializer(serializers.ModelSerializer):
                 permission.save()
             return permissioncategory
 
-
 class PermissionCategoryListSerializer(serializers.ModelSerializer):
     class Meta:
         model = PermissionCategory
         fields = ['id', 'name','is_active']
-
 
 class PermissionCategoryDetailSerializer(serializers.ModelSerializer):
     permissions = serializers.SerializerMethodField()
@@ -42,7 +40,6 @@ class PermissionCategoryDetailSerializer(serializers.ModelSerializer):
 
     def get_permissions(self, obj):
         return obj.permissions.values('id', 'name', 'code')
-    
 
 class PermissionSerializer(serializers.ModelSerializer):
     class Meta:
@@ -50,7 +47,6 @@ class PermissionSerializer(serializers.ModelSerializer):
         fields = ['id', 'name', 'code']
 
 class PermissionCategoryUpdateSerializer(serializers.ModelSerializer):
-
     # permissions_detail = PermissionSerializer(many=True, read_only=True)
     class Meta:
         model = PermissionCategory

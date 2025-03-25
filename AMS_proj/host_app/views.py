@@ -26,18 +26,6 @@ class DepartmentRegistrationView(APIView):
                 'data': DepartmentSerializer(department).data
             }, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-# class GetDepartmentView(APIView):
-#     permission_classes = [HasRolePermission]
-#     serializer_class = DepartmentSerializer
-#     required_permission = 'can_read_department'
-
-#     def get(self, request, pk=None):
-#         department = Department.objects.all()
-#         if department.exists():
-#             serializer = DepartmentSerializer(department, many=True)
-#             return Response(serializer.data, status=status.HTTP_200_OK)
-#         return Response({"msg": "No department found."}, status=status.HTTP_404_NOT_FOUND)
     
 class GetDepartmentView(ListAPIView):
     # permission_classes = [HasRolePermission]
@@ -99,24 +87,12 @@ class GetYourInfo(APIView):
         host = request.user
         serializer = UserSerializer(host)
         return Response(serializer.data)
-    
-# class GetUserView(APIView):
-#     serializer_class = UserUpdateSerializer
-#     permission_classes = [HasRolePermission]
-#     required_permission = 'can_read_user'
-
-#     def get(self, request):
-#         user = User.objects.all()
-#         if user.exists():
-#             serializer = UserUpdateSerializer(user, many=True)
-#             return Response(serializer.data, status=status.HTTP_200_OK)
-#         return Response({"msg": "No users found."}, status=status.HTTP_404_NOT_FOUND)
 
 class GetUserView(ListAPIView):
     permission_classes = [HasRolePermission]
     required_permission = 'can_read_user'
     queryset=User.objects.all().order_by('id')
-    serializer_class = UserUpdateSerializer
+    serializer_class = GetUserSerializer
     pagination_class = CustomPageNumberPagination
 
 class UpdateUserView(APIView):
@@ -128,7 +104,7 @@ class UpdateUserView(APIView):
         if pk is not None:
             user = User.objects.filter(pk=pk)
             if user:
-                serializer = UserUpdateSerializer(user, many=True)
+                serializer = GetUserSerializer(user, many=True)
                 return Response(serializer.data, status=status.HTTP_200_OK)
         return Response({"msg": "User not found."}, status=status.HTTP_404_NOT_FOUND)
 

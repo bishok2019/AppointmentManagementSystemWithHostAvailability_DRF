@@ -43,7 +43,7 @@ class GetRoleView(ListAPIView):
     permission_classes=[HasPermission]
     required_permission = 'can_read_role'
     queryset = Role.objects.all().order_by('id')
-    serializer_class = RoleListSerializer
+    serializer_class = RoleDetailSerializer
     pagination_class = CustomPageNumberPagination
 
 class UpdateRoleView(APIView):

@@ -4,6 +4,7 @@ from django.contrib.auth import authenticate
 from role_app.models import Role
 from visitor_app.serializers import VisitorInfoSerializer
 from datetime import datetime
+from role_app.role_serializers import RoleDetailSerializer
 
 class DepartmentSerializer(serializers.ModelSerializer):
     class Meta:
@@ -115,7 +116,13 @@ class LoginSerializer(serializers.Serializer):
             attrs['user'] = user
             return attrs
         raise serializers.ValidationError('Must include "email" and "password".')
-    
+
+class GetUserSerializer(serializers.ModelSerializer):
+    role=RoleDetailSerializer(many=True, read_only=True)
+    class Meta:
+        model = User
+        fields = ['id','username','department','email','role','is_active']
+
 class UserUpdateSerializer(serializers.ModelSerializer):
     # department = serializers.CharField(source='visiting_to.department.name', read_only=True)
     depart = serializers.CharField(source='department.name', read_only=True)
