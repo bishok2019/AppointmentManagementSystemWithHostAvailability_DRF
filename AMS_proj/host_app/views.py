@@ -127,13 +127,13 @@ class UserLoginView(APIView):
         serializer = LoginSerializer(data=request.data, context={'request': request})
         if serializer.is_valid():
             user = serializer.validated_data['user']
-            # refresh = RefreshToken.for_user(user)
+            refresh = RefreshToken.for_user(user)
             return Response({
                 'status': 'success',
                 'message': 'Login successful',
                 'data': {
-                    # 'refresh': str(refresh),
-                    # 'access': str(refresh.access_token),
+                    'refresh': str(refresh),
+                    'access': str(refresh.access_token),
                     'user': UserSerializer(user).data
                 }
             }, status=status.HTTP_200_OK)

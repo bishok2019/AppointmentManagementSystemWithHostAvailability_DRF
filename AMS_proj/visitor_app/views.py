@@ -17,12 +17,14 @@ class RegisterVisitorView(APIView):
     permission_classes = [AllowAny]
     def post(self, request, pk=None):
         registration_serializer = VisitorSerializer(data=request.data)
-        availabilities = HostAvailability.objects.filter(host=request.user, is_booked=False)
+        availabilities = HostAvailability.objects.filter(host=request.data.get('host_id') , is_booked=False)
+        # availabilities = HostAvailability.objects.filter(host=request.user, is_booked=False)
         availability_serializer = HostAvailabilitySerializer(availabilities, many=True, context={'request': request})
         if registration_serializer.is_valid():
             visitor = registration_serializer.save()
             display_serializer = VisitorInfoSerializer(visitor)
             return Response({'msg':'Meeting Appointed','data':display_serializer.data}, status=status.HTTP_201_CREATED)
+        
         return Response({'msg':registration_serializer.errors, 'available_slots':availability_serializer.data}, status=status.HTTP_400_BAD_REQUEST)
 
 class VisitorView(ListAPIView):
@@ -121,10 +123,13 @@ class UpdateYourAppointmentView(APIView):
     def patch(self, request, pk=None, format=None):
         host = request.user
         visitor = Visitor.objects.filter(pk=pk, visiting_to=host).first()
+        
         if not visitor:
             return Response({"msg": "Appointment not found."}, status=status.HTTP_404_NOT_FOUND)
+        
         serializer = RescheduleSerializer(visitor, data=request.data, partial=True)
         availabilities = HostAvailability.objects.filter(host=request.user)
+        
         availability_serializer = HostAvailabilitySerializer(availabilities, many=True, context={'request': request})
         if serializer.is_valid():
             serializer.save()

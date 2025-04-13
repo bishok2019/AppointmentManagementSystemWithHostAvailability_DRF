@@ -10,6 +10,7 @@ class DepartmentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Department
         fields = '__all__'
+        
 class HostAvailabilitySerializer(serializers.ModelSerializer):
     host = serializers.CharField(source='host.username', read_only=True)
     visitor = VisitorInfoSerializer(source='visitors', many=True, read_only=True)
@@ -19,7 +20,7 @@ class HostAvailabilitySerializer(serializers.ModelSerializer):
         read_only_fields = ['visitor', 'host']
 
     def validate(self, data):
-        """Validate timing rules and prevent overlaps (works for all operations)."""
+        # Validate timing rules and prevent overlaps (works for all operations)
         request = self.context.get('request')
         host = request.user if request else None
 

@@ -113,6 +113,7 @@ class RescheduleSerializer(serializers.ModelSerializer):
         
         if new_status != 'confirmed':
             # Handle non-confirmed updates
+            instance.status = new_status
             instance.meeting_date = validated_data.get('meeting_date', instance.meeting_date)
             instance.meeting_start_time = validated_data.get('meeting_start_time', instance.meeting_start_time)
             instance.meeting_end_time = validated_data.get('meeting_end_time', instance.meeting_end_time)

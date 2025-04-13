@@ -86,7 +86,14 @@ Name: {visitor.name}
 Company: {visitor.company}
 Date: {visitor.meeting_date}
 Time: {visitor.meeting_start_time} to {visitor.meeting_end_time}
-
+Reason:{visitor.reason}
+Status: {visitor.status}
+Please check your dashboard for more details.
+Visitor Contact:
+Phone Number: {visitor.phone_num}
+Email: {visitor.email}
+Please ensure to check in the visitor upon arrival.
+Meeting Duration: {visitor.meeting_duration}
 Please be prepared for the meeting.
 """
     send_mail(
