@@ -33,7 +33,7 @@ class VisitorSerializer(serializers.ModelSerializer):
             now = timezone.now().replace(tzinfo=None)
             if meeting_datetime < now:
                 raise serializers.ValidationError("Meeting cannot be scheduled in the past.")
-            
+        
         # End time must be after start time
         if meeting_end <= meeting_start:
             raise serializers.ValidationError("End time must be after start time")
