@@ -1,3 +1,5 @@
+from django.utils import timezone
+from notification.services import create_notification
 from django.db import transaction
 from rest_framework import serializers
 from .models import Visitor
@@ -7,7 +9,7 @@ from notify_with_email import send_creation_notifications, send_update_notificat
 
 class VisitorSerializer(serializers.ModelSerializer):
     department = serializers.CharField(source='visiting_to.department.name', read_only=True)
-    meeting_duration = serializers.SerializerMethodField()
+    meeting_duration = serializers.ReadOnlyField()
     # visiting_to = serializers.CharField(source='visiting_to.username')
 
     class Meta:
@@ -19,19 +21,24 @@ class VisitorSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['status']
 
-    def get_meeting_duration(self, obj):
-        start = datetime.combine(obj.meeting_date, obj.meeting_start_time)
-        end = datetime.combine(obj.meeting_date, obj.meeting_end_time)
-        return int((end - start).total_seconds() // 60)
-
     def validate(self, data):
-        meeting_date = data.get('meeting_date')
-        meeting_start = data.get('meeting_start_time')
-        meeting_end = data.get('meeting_end_time')
+        visiting_to = data.get('visiting_to', self.instance.visiting_to)
+        meeting_date = data.get('meeting_date', self.instance.meeting_date)
+        meeting_start = data.get('meeting_start_time', self.instance.meeting_start_time)
+        meeting_end = data.get('meeting_end_time', self.instance.meeting_end_time)
 
+        # Meeting cannot be scheduled in the past
+        if meeting_date is not None and meeting_start is not None:
+            meeting_datetime = datetime.combine(meeting_date, meeting_start)
+            now = timezone.now().replace(tzinfo=None)
+            if meeting_datetime < now:
+                raise serializers.ValidationError("Meeting cannot be scheduled in the past.")
+            
+        # End time must be after start time
         if meeting_end <= meeting_start:
             raise serializers.ValidationError("End time must be after start time")
-            
+        
+        # Minimum 15 minutes required
         if (datetime.combine(meeting_date, meeting_end) - 
             datetime.combine(meeting_date, meeting_start)).total_seconds() < 900:
             raise serializers.ValidationError("Minimum 15 minutes required")
@@ -53,7 +60,115 @@ class VisitorSerializer(serializers.ModelSerializer):
             status='pending'
         )
         send_creation_notifications(visitor)
+
+        create_notification(
+            recipient=visitor.visiting_to,
+            notification_type='VISITOR_REQUEST',
+            title='New Visitor Request',
+            message=f'New visitor request from {visitor.name}',
+            content_object=visitor
+        )
         return visitor
+class UpdateVisitorSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Visitor
+        fields = [
+            'id', 'name', 'company', 'email', 'photo', 'phone_num', 'status',
+            'visiting_to', 'meeting_date', 'meeting_start_time', 'meeting_end_time',
+            'meeting_duration', 'reason', 'department'
+        ]
+        read_only_fields = ['status']
+
+    def validate(self, data):
+        instance = self.instance
+        # Check if the status is confirmed
+        if instance.status == 'confirmed':
+            raise serializers.ValidationError("Confirmed appointments cannot be modified.")
+
+        visiting_to = data.get('visiting_to', self.instance.visiting_to)
+        meeting_date = data.get('meeting_date', self.instance.meeting_date)
+        meeting_start = data.get('meeting_start_time', self.instance.meeting_start_time)
+        meeting_end = data.get('meeting_end_time', self.instance.meeting_end_time)
+
+        # Meeting cannot be scheduled in the past
+        if meeting_date is not None and meeting_start is not None:
+            meeting_datetime = datetime.combine(meeting_date, meeting_start)
+            now = timezone.now().replace(tzinfo=None)
+            if meeting_datetime < now:
+                raise serializers.ValidationError("Meeting cannot be scheduled in the past.")
+            
+        # End time must be after start time
+        if meeting_end <= meeting_start:
+            raise serializers.ValidationError("End time must be after start time")
+        
+        # Minimum 15 minutes required
+        if (datetime.combine(meeting_date, meeting_end) - 
+            datetime.combine(meeting_date, meeting_start)).total_seconds() < 900:
+            raise serializers.ValidationError("Minimum 15 minutes required")
+        
+
+        # Overlap check: Only check against active statuses (confirmed, checked_in, completed)
+        overlapping = Visitor.objects.filter(
+            visiting_to=visiting_to,
+            meeting_date=meeting_date,
+            meeting_start_time__lt=meeting_end,
+            meeting_end_time__gt=meeting_start,
+            status__in=['confirmed', 'checked_in', 'completed']  # Exclude pending/cancelled
+        ).exclude(pk=instance.pk)  # Exclude current appointment
+
+        if overlapping.exists():
+            raise serializers.ValidationError("This time slot overlaps with an active appointment for the host.")
+
+
+        return data
+
+    def update(self, instance, validated_data):
+        old_host = None
+        original_status = instance.status
+        
+        # Check if the host is being changed
+        if 'visiting_to' in validated_data and instance.visiting_to != validated_data['visiting_to']:
+            old_host = instance.visiting_to  # Capture old host
+
+        instance.modified_by = self.context['request'].user
+        
+        # Update the instance
+        instance = super().update(instance, validated_data)
+        new_status = instance.status
+
+        #Notification logic
+        if old_host:
+            #Notify Old Host
+            create_notification(
+                recipient=old_host,
+                notification_type='VISITOR_UPDATE',
+                title=f'Visitor Reassigned - {instance.name}',
+                message=f'Visitor {instance.name} has been removed from your list.',
+                content_object=instance
+            )
+            #Notify New Host
+            create_notification(
+                recipient=instance.visiting_to,
+                notification_type='VISITOR_UPDATE',
+                title=f'Visitor Assigned - {instance.name}',
+                message=f'Visitor {instance.name} has been assigned to you by {instance.modified_by.username}.',
+                content_object=instance
+            )
+
+            # Status change notification
+        if new_status != original_status:
+            create_notification(
+                recipient=instance.visiting_to,
+                notification_type='VISITOR_UPDATE',
+                title=f'Status Update - {instance.name}',
+                message=f'Status changed to {new_status} by {instance.modified_by.username}.',
+                content_object=instance
+            )
+        
+        # Trigger notifications (host change or general update)
+        send_update_notification(instance, old_host=old_host)
+        
+        return instance
 
 class RescheduleSerializer(serializers.ModelSerializer):
     class Meta:
@@ -71,6 +186,12 @@ class RescheduleSerializer(serializers.ModelSerializer):
         new_start = data.get('meeting_start_time', instance.meeting_start_time)
         new_end = data.get('meeting_end_time', instance.meeting_end_time)
         host = instance.visiting_to
+
+        if new_date is not None and new_start is not None:
+            meeting_datetime = datetime.combine(new_date, new_start)
+            now = timezone.now().replace(tzinfo=None)
+            if meeting_datetime < now:
+                raise serializers.ValidationError("Meeting cannot be scheduled in the past.")
 
         if new_end <= new_start:
             raise serializers.ValidationError("End time must be after start time")

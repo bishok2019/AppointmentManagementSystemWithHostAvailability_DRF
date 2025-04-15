@@ -1,10 +1,10 @@
 #visitor_app/models.py
 from django.db import models
-from django.db import models
 from django.utils.translation import gettext_lazy as _
 from django.utils import timezone
 from django.conf import settings
 from host_app.models import User, HostAvailability
+from datetime import datetime, timedelta
 
 # Create your models here.
 class Visitor(models.Model):
@@ -31,3 +31,7 @@ class Visitor(models.Model):
 
     def __str__(self):
         return self.name
+    
+    @property
+    def meeting_duration(self):
+        return datetime.combine(self.meeting_date, self.meeting_start_time) - datetime.combine(self.meeting_date, self.meeting_end_time)

@@ -1,5 +1,5 @@
 from .models import Visitor
-from .serializers import VisitorSerializer, VisitorInfoSerializer, RescheduleSerializer
+from .serializers import VisitorSerializer, VisitorInfoSerializer, RescheduleSerializer, UpdateVisitorSerializer
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -32,12 +32,13 @@ class VisitorView(ListAPIView):
     serializer_class = VisitorInfoSerializer
     # permission_classes = [HasRolePermission]
     # required_permission =  'can_read_visitor'
+    # permission_classes =[IsAuthenticated]
     pagination_class=CustomPageNumberPagination
     filter_backends = [DjangoFilterBackend]
     filterset_class = VisitorFilter
 
 class UpdateVisitorView(APIView):
-    serializer_class = VisitorSerializer
+    # serializer_class = VisitorSerializer
     # permission_classes = [HasRolePermission]
     # required_permission =  'can_update_visitor'
     def get(self, request, pk=None):
@@ -52,7 +53,13 @@ class UpdateVisitorView(APIView):
         visitor = Visitor.objects.filter(pk=pk).first()
         if not visitor:
             return Response({"msg": "Appointment not found."}, status=status.HTTP_404_NOT_FOUND)
-        serializer = VisitorSerializer(visitor, data=request.data, partial=True)
+        
+        serializer = UpdateVisitorSerializer(
+            visitor,
+             data=request.data,
+             partial=True, 
+             context={'request': request}) #Pass request context to serializer for user tracking
+
         if serializer.is_valid():
             serializer.save()
             return Response({'msg': 'Visitor successfully updated!'}, status=status.HTTP_200_OK)

@@ -89,8 +89,8 @@ class GetYourInfo(APIView):
         return Response(serializer.data)
 
 class GetUserView(ListAPIView):
-    permission_classes = [HasRolePermission]
-    required_permission = 'can_read_user'
+    # permission_classes = [HasRolePermission]
+    # required_permission = 'can_read_user'
     queryset=User.objects.all().order_by('id')
     serializer_class = GetUserSerializer
     pagination_class = CustomPageNumberPagination

@@ -11,9 +11,9 @@ urlpatterns = [
 
     path('create', role_views.CreateRoleView.as_view(), name='role-list-create'),
     path('', role_views.GetRoleView.as_view(), name='role-detail'),
-    path('<int:pk>/', role_views.UpdateRoleView.as_view(), name='role-update'),
+    path('<int:pk>', role_views.UpdateRoleView.as_view(), name='role-update'),
 
     path('permissioncategory/create', views.CreatePermissionCategoryView.as_view(), name='permissioncategory-list-create'),
-    path('permissioncategory/', views.GetPermissionCategoryView.as_view(), name='permissioncategory-get'),
-    path('permissioncategory/<int:pk>/', views.UpdatePermissionCategoryView.as_view(), name='permissioncategory-update'),
+    path('permissioncategory', views.GetPermissionCategoryView.as_view(), name='permissioncategory-get'),
+    path('permissioncategory/<int:pk>', views.UpdatePermissionCategoryView.as_view(), name='permissioncategory-update'),
 ]
