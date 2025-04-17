@@ -39,6 +39,7 @@ INSTALLED_APPS = [
     'django_filters',
     'drf_spectacular',
     'channels',
+    'django_crontab',
 
     'rest_framework_simplejwt',
     'rest_framework_simplejwt.token_blacklist',
@@ -174,4 +175,18 @@ CHANNEL_LAYERS = {
     },
 }
 
+CELERY_BEAT_SCHEDULE = {
+    'appointment-reminders': {
+        'task': 'notification.tasks.send_appointment_reminders',
+        'schedule': timedelta(days=1),
+        'options': {'expires': 3600}
+    },
+}
+
 APPEND_SLASH=False
+
+CRONJOBS = [
+    ('0 8 * * *', 'notification.notification_tasks.notify_hosts_of_upcoming_appointments')  # Runs daily at 8 AM
+]
+CELERY_BROKER_URL = 'redis://localhost:6379/0'
+CELERY_RESULT_BACKEND = 'redis://localhost:6379/0'
