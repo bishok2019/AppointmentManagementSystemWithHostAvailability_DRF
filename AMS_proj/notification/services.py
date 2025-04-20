@@ -33,7 +33,7 @@ def create_notification(recipient, notification_type, title, message, content_ob
             'id': content_object.id
         }
     
-    # Send the notification via WebSocket
+    # Send the notification via WebSocket, This causes Django Channels to look for the method named send_notification in the NotificationConsumer
     async_to_sync(channel_layer.group_send)(
         f'notifications_{recipient.id}',
         {

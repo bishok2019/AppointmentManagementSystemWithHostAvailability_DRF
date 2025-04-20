@@ -8,8 +8,8 @@ from rest_framework_simplejwt.tokens import AccessToken
 from django.contrib.auth import get_user_model
 
 class NotificationConsumer(AsyncWebsocketConsumer):
-    async def connect(self):
-        self.notification_group_name = None  # Initialize here
+    async def connect(self):# This method is called when the WebSocket is handshaking as part of the connection process: which is simply a connection setup
+        self.notification_group_name = None
         try:
             token = self.scope['query_string'].decode().split('token=')[1]
             self.user = await self.get_user(token)
@@ -19,7 +19,7 @@ class NotificationConsumer(AsyncWebsocketConsumer):
                 return
 
             # Only set group name if validation passes
-            self.notification_group_name = f'notifications_{self.user.id}'
+            self.notification_group_name = f'notifications_{self.user.id}' #notification + user.id
             
             await self.channel_layer.group_add(
                 self.notification_group_name,
@@ -28,8 +28,9 @@ class NotificationConsumer(AsyncWebsocketConsumer):
             await self.accept()
 
         except Exception as e:
-            await self.close(code=4001)  # Proper error code
+            await self.close(code=4001)  # error code
 
+# Runs when a client disconnects, removing them from the notification group
     async def disconnect(self, close_code):
         # Only attempt to discard if group name exists
         if self.notification_group_name:
@@ -38,7 +39,6 @@ class NotificationConsumer(AsyncWebsocketConsumer):
                 self.channel_name
             )
 
-    # Add this method to your NotificationConsumer class
     async def send_notification(self, event):
         # Send message to WebSocket
         await self.send(text_data=json.dumps(event['content']))

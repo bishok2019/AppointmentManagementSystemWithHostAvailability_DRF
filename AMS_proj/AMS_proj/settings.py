@@ -1,5 +1,6 @@
 
 from pathlib import Path
+from celery.schedules import crontab
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -39,7 +40,8 @@ INSTALLED_APPS = [
     'django_filters',
     'drf_spectacular',
     'channels',
-    'django_crontab',
+    # 'django_crontab', # not required if using celery beat
+    'django_celery_beat',
 
     'rest_framework_simplejwt',
     'rest_framework_simplejwt.token_blacklist',
@@ -112,11 +114,13 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = 'en-us'
 
-TIME_ZONE = 'UTC'
+# TIME_ZONE = 'UTC'
+TIME_ZONE = 'Asia/Kathmandu'
 
 USE_I18N = True
 
 USE_TZ = True
+CELERY_TIMEZONE = TIME_ZONE
 
 
 # Static files (CSS, JavaScript, Images)
@@ -176,17 +180,20 @@ CHANNEL_LAYERS = {
 }
 
 CELERY_BEAT_SCHEDULE = {
-    'appointment-reminders': {
-        'task': 'notification.tasks.send_appointment_reminders',
-        'schedule': timedelta(days=1),
-        'options': {'expires': 3600}
+    'daily-reminders': {
+        'task': 'notification.tasks.notify_hosts_of_upcoming_appointments',
+        'schedule': crontab(hour=8, minute=0),  # Daily at 8 AM local time
     },
+    '5-minute-check': {
+        'task': 'notification.tasks.notify_hosts_of_upcoming_appointments',
+        'schedule': crontab(minute='*/1'),  # Run every minute
+    }
 }
 
 APPEND_SLASH=False
 
-CRONJOBS = [
-    ('0 8 * * *', 'notification.notification_tasks.notify_hosts_of_upcoming_appointments')  # Runs daily at 8 AM
-]
+# CRONJOBS = [
+#     ('0 8 * * *', 'notification.notification_tasks.notify_hosts_of_upcoming_appointments')  # Runs daily at 8 AM
+# ]
 CELERY_BROKER_URL = 'redis://localhost:6379/0'
 CELERY_RESULT_BACKEND = 'redis://localhost:6379/0'

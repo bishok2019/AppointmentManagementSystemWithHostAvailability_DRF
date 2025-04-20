@@ -20,7 +20,7 @@ class Visitor(models.Model):
     email = models.EmailField(null=True, blank=True)
     photo = models.ImageField(upload_to='visitor_photos/',null=True, blank=True)
     company = models.CharField(max_length=150)
-    visiting_to = models.ForeignKey(User,on_delete=models.CASCADE,related_name='host')
+    visiting_to = models.ForeignKey(User,on_delete=models.CASCADE,related_name='host') # notification on visiting date
     meeting_date = models.DateField()
     meeting_start_time = models.TimeField()
     meeting_end_time = models.TimeField()
@@ -28,7 +28,9 @@ class Visitor(models.Model):
     created_at = models.DateTimeField(default=timezone.now)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
     availability = models.ForeignKey(HostAvailability, on_delete=models.SET_NULL, null=True, blank=True, related_name='visitors')
-
+    reminder_for_a_day_before_meeting_sent = models.BooleanField(default=False)
+    reminder_for_a_day_of_meeting_sent = models.BooleanField(default=False)
+    reminder_for_a_five_minute_before_meeting_sent = models.BooleanField(default=False)
     def __str__(self):
         return self.name
     

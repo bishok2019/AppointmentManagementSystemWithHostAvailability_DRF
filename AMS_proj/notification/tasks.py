@@ -1,72 +1,76 @@
-# # notification/tasks.py
-# from celery import shared_task
-# from channels.layers import get_channel_layer
-# from asgiref.sync import async_to_sync
-# from .models import Notification
-# import logging
+# notification/tasks.py
+from datetime import datetime, timedelta
+from django.utils import timezone
+from notification.services import create_notification
+from visitor_app.models import Visitor
+from celery import shared_task
 
-# logger = logging.getLogger(__name__)
+@shared_task
 
-# @shared_task(bind=True, max_retries=3)
-# def send_notification_task(self, recipient_id, notification_id):
-#     """
-#     Send notification via WebSocket with retry mechanism
-#     """
-#     try:
-#         # Get the notification
-#         notification = Notification.objects.get(id=notification_id)
-        
-#         # Prepare notification data
-#         notification_data = {
-#             'id': notification.id,
-#             'type': notification.notification_type,
-#             'title': notification.title,
-#             'message': notification.message,
-#             'timestamp': notification.created_at.isoformat()
-#         }
-        
-#         # Add related object info if available
-#         if notification.content_object:
-#             notification_data['related_object'] = {
-#                 'type': notification.content_object._meta.model_name,
-#                 'id': notification.content_object.id
-#             }
-        
-#         # Send via WebSocket
-#         channel_layer = get_channel_layer()
-#         async_to_sync(channel_layer.group_send)(
-#             f'notifications_{recipient_id}',
-#             {
-#                 'type': 'send_notification',
-#                 'content': notification_data
-#             }
-#         )
-        
-#         return f"Notification {notification_id} sent to user {recipient_id}"
+def notify_hosts_of_upcoming_appointments():
+    """
+    Check for appointments scheduled for today or tomorrow and notify hosts
+    This function should be run daily through a scheduled task
+    """
+    now = timezone.localtime(timezone.now())
+    today = timezone.now().date()
+    tomorrow = today + timedelta(days=1)
+
+    # Day-before reminders for tomorrow's appointment
+    day_before_task = Visitor.objects.filter(
+        meeting_date = tomorrow,
+        status = 'confirmed',
+        reminder_for_a_day_before_meeting_sent = False
+    )
     
-#     except Exception as e:
-#         logger.error(f"Failed to send notification {notification_id}: {str(e)}")
-#         # Retry with exponential backoff
-#         retry_countdown = 2 ** self.request.retries
-#         raise self.retry(exc=e, countdown=retry_countdown)
+   # Day-of reminders for today's appointments
+    day_of_task = Visitor.objects.filter(
+        meeting_date=today,
+        status='confirmed',
+        reminder_for_a_day_of_meeting_sent=False
+    )
 
-# # Update services.py to use the task
-# # notification/services.py
-# from .tasks import send_notification_task
-
-# def create_notification(recipient, notification_type, title, message, content_object=None):
-#     """
-#     Create a notification and queue it for delivery
-#     """
-#     notification = Notification.objects.create(
-#         recipient=recipient,
-#         notification_type=notification_type,
-#         title=title,
-#         message=message,
-#         content_object=content_object
-#     )
+     # 5-minute reminders
+    five_minute_window = now + timedelta(minutes=5)
+    five_minute_before = Visitor.objects.filter(
+        meeting_date=today,
+        meeting_start_time__lte=five_minute_window.time(),
+        meeting_start_time__gte=now.time(),
+        status='confirmed',
+        reminder_for_a_five_minute_before_meeting_sent=False
+    )
+    # Process day-before reminders
+    for appointment in day_before_task:
+        create_notification(
+            recipient=appointment.visiting_to,
+            notification_type='APPOINTMENT_REMINDER',
+            title='Appointment Tomorrow',
+            message=f'You have an appointment with {appointment.name} tomorrow at {appointment.meeting_start_time.strftime("%H:%M")}',
+            content_object=appointment
+        )
+        appointment.reminder_for_a_day_before_meeting_sent = True
+        appointment.save()
     
-#     # Queue the notification for delivery
-#     send_notification_task.delay(recipient.id, notification.id)
+    # Process day-of reminders
+    for appointment in day_of_task:
+        create_notification(
+            recipient=appointment.visiting_to,
+            notification_type='APPOINTMENT_REMINDER',
+            title='Appointment Today',
+            message=f'You have an appointment with {appointment.name} today at {appointment.meeting_start_time.strftime("%H:%M")}',
+            content_object=appointment
+        )
+        appointment.reminder_for_a_day_of_meeting_sent = True
+        appointment.save()
     
-#     return notification
+     # Process 5-minute reminders
+    for appointment in five_minute_before:
+        create_notification(
+            recipient=appointment.visiting_to,
+            notification_type='APPOINTMENT_REMINDER',
+            title='Appointment Starting Soon',
+            message=f'Your appointment with {appointment.name} starts in 5 minutes!',
+            content_object=appointment
+        )
+        appointment.reminder_for_a_five_minute_before_meeting_sent = True
+        appointment.save()

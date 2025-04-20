@@ -6,6 +6,7 @@ from .models import Visitor
 from host_app.models import HostAvailability
 from datetime import datetime
 from notify_with_email import send_creation_notifications, send_update_notification
+from django.utils import timezone
 
 class VisitorSerializer(serializers.ModelSerializer):
     department = serializers.CharField(source='visiting_to.department.name', read_only=True)
@@ -22,27 +23,28 @@ class VisitorSerializer(serializers.ModelSerializer):
         read_only_fields = ['status']
 
     def validate(self, data):
-        visiting_to = data.get('visiting_to', self.instance.visiting_to)
-        meeting_date = data.get('meeting_date', self.instance.meeting_date)
-        meeting_start = data.get('meeting_start_time', self.instance.meeting_start_time)
-        meeting_end = data.get('meeting_end_time', self.instance.meeting_end_time)
+        meeting_date = data.get('meeting_date')
+        start_time = data.get('meeting_start_time')
+        end_time = data.get('meeting_end_time')
 
-        # Meeting cannot be scheduled in the past
-        if meeting_date is not None and meeting_start is not None:
-            meeting_datetime = datetime.combine(meeting_date, meeting_start)
-            now = timezone.now().replace(tzinfo=None)
+        if meeting_date and start_time:
+
+            meeting_datetime = timezone.make_aware(datetime.combine(meeting_date, start_time),timezone.get_current_timezone())
+            
+            now = timezone.now()
+
             if meeting_datetime < now:
                 raise serializers.ValidationError("Meeting cannot be scheduled in the past.")
         
         # End time must be after start time
-        if meeting_end <= meeting_start:
+        if end_time <= start_time:
             raise serializers.ValidationError("End time must be after start time")
         
-        # Minimum 15 minutes required
-        if (datetime.combine(meeting_date, meeting_end) - 
-            datetime.combine(meeting_date, meeting_start)).total_seconds() < 900:
-            raise serializers.ValidationError("Minimum 15 minutes required")
-
+        # # Minimum 15 minutes required
+        if meeting_date and start_time and end_time:
+            duration = (datetime.combine(meeting_date, end_time) - datetime.combine(meeting_date, start_time)).total_seconds()
+            if duration < 900:
+                raise serializers.ValidationError("Minimum 15 minutes required")
         return data
 
     def create(self, validated_data):
@@ -75,7 +77,7 @@ class UpdateVisitorSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'name', 'company', 'email', 'photo', 'phone_num', 'status',
             'visiting_to', 'meeting_date', 'meeting_start_time', 'meeting_end_time',
-            'meeting_duration', 'reason', 'department'
+            'meeting_duration', 'reason'
         ]
         read_only_fields = ['status']
 
@@ -91,19 +93,20 @@ class UpdateVisitorSerializer(serializers.ModelSerializer):
         meeting_end = data.get('meeting_end_time', self.instance.meeting_end_time)
 
         # Meeting cannot be scheduled in the past
-        if meeting_date is not None and meeting_start is not None:
-            meeting_datetime = datetime.combine(meeting_date, meeting_start)
-            now = timezone.now().replace(tzinfo=None)
+        if meeting_date and meeting_start:
+
+            meeting_datetime = timezone.make_aware(datetime.combine(meeting_date, meeting_start),timezone.get_current_timezone())
+            
+            now = timezone.now()
+
             if meeting_datetime < now:
                 raise serializers.ValidationError("Meeting cannot be scheduled in the past.")
             
         # End time must be after start time
         if meeting_end <= meeting_start:
             raise serializers.ValidationError("End time must be after start time")
-        
-        # Minimum 15 minutes required
-        if (datetime.combine(meeting_date, meeting_end) - 
-            datetime.combine(meeting_date, meeting_start)).total_seconds() < 900:
+    
+        if (datetime.combine(meeting_date, meeting_end) - datetime.combine(meeting_date, meeting_start)).total_seconds() < 900:
             raise serializers.ValidationError("Minimum 15 minutes required")
         
 
@@ -130,7 +133,7 @@ class UpdateVisitorSerializer(serializers.ModelSerializer):
         if 'visiting_to' in validated_data and instance.visiting_to != validated_data['visiting_to']:
             old_host = instance.visiting_to  # Capture old host
 
-        instance.modified_by = self.context['request'].user
+        instance.modified_by = self.context['request'].user # This is logged in user we need to capture
         
         # Update the instance
         instance = super().update(instance, validated_data)
@@ -166,7 +169,7 @@ class UpdateVisitorSerializer(serializers.ModelSerializer):
             )
         
         # Trigger notifications (host change or general update)
-        send_update_notification(instance, old_host=old_host)
+        send_update_notification(instance, old_host=old_host) # for email
         
         return instance
 
@@ -187,10 +190,9 @@ class RescheduleSerializer(serializers.ModelSerializer):
         new_end = data.get('meeting_end_time', instance.meeting_end_time)
         host = instance.visiting_to
 
-        if new_date is not None and new_start is not None:
-            meeting_datetime = datetime.combine(new_date, new_start)
-            now = timezone.now().replace(tzinfo=None)
-            if meeting_datetime < now:
+        if new_date and new_start:
+            meeting_datetime = timezone.make_aware(datetime.combine(new_date, new_start))
+            if meeting_datetime < timezone.now():
                 raise serializers.ValidationError("Meeting cannot be scheduled in the past.")
 
         if new_end <= new_start:
@@ -204,8 +206,8 @@ class RescheduleSerializer(serializers.ModelSerializer):
             visiting_to=host,
             meeting_date=new_date,
             meeting_start_time__lt=new_end,
-            meeting_end_time__gt=new_start
-        ).exclude(id=instance.id).exclude(status='cancelled').exists()
+            meeting_end_time__gt=new_start,
+        ).exclude(id=instance.id).exclude(status__in=['cancelled','pending']).exists()
 
         if overlapping:
             raise serializers.ValidationError("The time slot for requested appointment is already booked")
@@ -234,6 +236,9 @@ class RescheduleSerializer(serializers.ModelSerializer):
         
         if new_status != 'confirmed':
             # Handle non-confirmed updates
+            instance.reminder_for_a_day_before_meeting_sent = False
+            instance.reminder_for_a_day_of_meeting_sent = False
+            instance.reminder_for_a_five_minute_before_meeting_sent = False
             instance.status = new_status
             instance.meeting_date = validated_data.get('meeting_date', instance.meeting_date)
             instance.meeting_start_time = validated_data.get('meeting_start_time', instance.meeting_start_time)
@@ -288,6 +293,15 @@ class RescheduleSerializer(serializers.ModelSerializer):
 
         self.merge_slots(booked_slot.host, booked_slot.date)
         send_update_notification(instance)
+
+        #create notification
+        create_notification(
+        recipient=instance.visiting_to,
+        notification_type='VISITOR_UPDATE',
+        title='Appointment Rescheduled',
+        message=f'Your appointment with {instance.name} has been rescheduled to {instance.meeting_date}',
+        content_object=instance
+    )
         return instance
 
     def merge_slots(self, host, date):
