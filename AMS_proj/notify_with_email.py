@@ -20,10 +20,13 @@ def send_visitor_notification(visitor, change_type=None, old_host=None):
         New Host: {host.username}
         Date: {visitor.meeting_date}
         Time: {visitor.meeting_start_time} to {visitor.meeting_end_time}
-        Status:{visitor.status}
+        Status: {visitor.status}
 
         Please note this change for your visit.
         """
+        if status == 'pending':
+            message += "\nPlease wait for your new host to confirm the appointment."
+            
     elif change_type == "creation":  # creation case
         subject = "Appointment Booked"
         message = f"""Hello {visitor.name},
@@ -33,6 +36,28 @@ def send_visitor_notification(visitor, change_type=None, old_host=None):
         Time: {visitor.meeting_start_time} to {visitor.meeting_end_time}
         Status: {status}"""
         
+        if status == 'pending':
+            message += "\nPlease wait for host confirmation."
+    
+    elif change_type == "update":  # Add an explicit update case
+        subject = "Appointment Updated"
+        message = f"""Dear {visitor.name},
+        Your appointment details have been updated:
+        
+        Host: {host.username}
+        Date: {visitor.meeting_date}
+        Time: {visitor.meeting_start_time} to {visitor.meeting_end_time}
+        Status: {status}
+        """
+        
+        # Add status-specific messages
+        if status == 'pending':
+            message += "\nPlease wait for host confirmation."
+        elif status == 'confirmed':
+            message += "\nYour appointment has been confirmed. Please arrive 10 minutes early."
+        elif status == 'cancelled':
+            message += "\nThis appointment has been cancelled."
+        
     else:
         if status == 'confirmed':
             subject = "Appointment Confirmed"
@@ -40,10 +65,10 @@ def send_visitor_notification(visitor, change_type=None, old_host=None):
             Your appointment with {host.username} has been CONFIRMED.
             Date: {visitor.meeting_date}
             Time: {visitor.meeting_start_time} to {visitor.meeting_end_time}
-            Status:{visitor.status}
+            Status: {visitor.status}
 
-        Please arrive 10 minutes early.
-        """
+            Please arrive 10 minutes early.
+            """
         elif status == 'cancelled':
             subject = "Appointment Cancelled"
             message = f"""Dear {visitor.name},
@@ -69,7 +94,9 @@ def send_visitor_notification(visitor, change_type=None, old_host=None):
             Host: {host.username}
             Date: {visitor.meeting_date}
             Time: {visitor.meeting_start_time} to {visitor.meeting_end_time}
-            Status:{visitor.status}
+            Status: {visitor.status}
+            
+            Please wait for host confirmation.
             """
         
     send_mail(
@@ -83,21 +110,22 @@ def send_visitor_notification(visitor, change_type=None, old_host=None):
 def send_update_notification(visitor, old_host=None):
     """Send notifications based on update type"""
     if old_host:
-        
         send_visitor_notification(visitor, change_type="host_change", old_host=old_host)
         #Send email to new host
         send_host_notification(visitor, notification_type="host_change", old_host=old_host)
         #Send email to old host
         send_host_notification(visitor, notification_type="removed", old_host=old_host)
     else:        
-        # Always notify visitor of changes
-        send_visitor_notification(visitor)
+        # Always notify visitor of changes with an explicit update type
+        send_visitor_notification(visitor, change_type="update")
         
         # Notify host based on status
         if visitor.status == 'confirmed':
             send_host_notification(visitor, "update")
         elif visitor.status == 'cancelled':
             send_host_notification(visitor, "cancellation")
+        else:
+            send_host_notification(visitor, "update")
 
 # Send_host_notification for all notification scenarios
 def send_host_notification(visitor, notification_type="new", old_host=None):
@@ -115,7 +143,10 @@ def send_host_notification(visitor, notification_type="new", old_host=None):
         A new appointment has been scheduled:
         Visitor: {visitor.name} ({visitor.company})
         Date: {visitor.meeting_date}
-        Time: {visitor.meeting_start_time} to {visitor.meeting_end_time}"""
+        Time: {visitor.meeting_start_time} to {visitor.meeting_end_time}
+        Status: {visitor.status}
+        
+        This appointment requires your confirmation."""
         recipient = host.email
 
     elif notification_type == "update":
@@ -128,7 +159,10 @@ def send_host_notification(visitor, notification_type="new", old_host=None):
         Visitor: {visitor.name}
         Meeting Date: {visitor.meeting_date}
         Meeting Time: {visitor.meeting_start_time} to {visitor.meeting_end_time}
-        Status:{visitor.status}"""
+        Status: {visitor.status}"""
+        
+        if visitor.status == 'pending':
+            message += "\n\nThis appointment requires your confirmation."
         
         recipient = host.email
         
@@ -142,7 +176,7 @@ def send_host_notification(visitor, notification_type="new", old_host=None):
         Visitor: {visitor.name}
         Date: {visitor.meeting_date}
         Time: {visitor.meeting_start_time} to {visitor.meeting_end_time}
-        Status:{visitor.status}
+        Status: {visitor.status}
         """
         recipient = host.email
 
@@ -156,7 +190,11 @@ def send_host_notification(visitor, notification_type="new", old_host=None):
         Visitor: {visitor.name} ({visitor.company})
         Date: {visitor.meeting_date}
         Time: {visitor.meeting_start_time} to {visitor.meeting_end_time}
-        Status:{visitor.status}"""
+        Status: {visitor.status}"""
+        
+        if visitor.status == 'pending':
+            message += "\n\nThis appointment requires your confirmation."
+            
         recipient = host.email
 
     elif notification_type == "removed":
