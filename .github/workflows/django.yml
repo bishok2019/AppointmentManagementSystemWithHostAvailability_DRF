@@ -49,6 +49,7 @@ jobs:
       env:
         DJANGO_SETTINGS_MODULE: AMS_proj.settings
         DATABASE_URL: postgres://postgres:postgres@localhost:5432/test_db
+        EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
       run: |
         python manage.py migrate
 
@@ -56,5 +57,6 @@ jobs:
       env:
         DJANGO_SETTINGS_MODULE: AMS_proj.settings
         DATABASE_URL: postgres://postgres:postgres@localhost:5432/test_db
+        EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
       run: |
         python manage.py test
