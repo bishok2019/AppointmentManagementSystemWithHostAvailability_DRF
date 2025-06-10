@@ -55,6 +55,7 @@ jobs:
         python manage.py migrate
 
     - name: Run tests
+      working-directory: AMS_proj
       env:
         DJANGO_SETTINGS_MODULE: AMS_proj.settings
         DATABASE_URL: postgres://postgres:postgres@localhost:5432/test_db
