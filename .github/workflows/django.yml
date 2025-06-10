@@ -45,6 +45,7 @@ jobs:
         pip install -r requirements.txt
 
     - name: Run migrations
+      working-directory: AMS_proj
       env:
         DJANGO_SETTINGS_MODULE: AMS_proj.settings
         DATABASE_URL: postgres://postgres:postgres@localhost:5432/test_db
